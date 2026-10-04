@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "mongodb://localhost:27017"
     MONGODB_DATABASE: str = "toolforge"
+    USE_MEMORY_DB: bool = False
 
     JWT_SECRET: str = "change-me"
     JWT_REFRESH_SECRET: str = "change-me-refresh"
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB_FREE: int = 10
     MAX_UPLOAD_MB_PRO: int = 50
     ANON_DAILY_LIMIT: int = 10
+
+    BIREFNET_MODE: str = "local"
+    BIREFNET_REMOTE_URL: str = ""
+    BIREFNET_MODEL_NAME: str = "ZhengPeng7/BiRefNet"
 
     SUPERADMIN_EMAIL: str = "admin@toolforge.com"
     SUPERADMIN_PASSWORD: str = "ChangeMe123!"

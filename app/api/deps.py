@@ -19,7 +19,13 @@ async def get_current_user_optional(
     user_id = verify_token(credentials.credentials)
     if not user_id:
         return None
-    user = serialize(await get_database()["users"].find_one({"_id": user_id, "is_active": True}))
+    user = serialize(
+        await get_database()["users"].find_one(
+            {"_id": user_id, "is_active": True}
+        )
+    )
+    if user:
+        user.pop("password_hash", None)
     return user
 
 

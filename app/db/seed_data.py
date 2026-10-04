@@ -61,6 +61,75 @@ TOOLS = [
     _tool("webp-converter", "WebP Converter", "image", ProcessingType.CLIENT.value, "Convert images to and from WebP format.", related=["jpg-to-png", "compress-image"], formats=["webp", "jpg", "jpeg", "png"]),
     _tool("rotate-image", "Rotate Image", "image", ProcessingType.CLIENT.value, "Rotate images 90°, 180° or 270°.", related=["flip-image", "crop-image"], formats=["jpg", "jpeg", "png", "webp"]),
     _tool("flip-image", "Flip Image", "image", ProcessingType.CLIENT.value, "Flip images horizontally or vertically.", related=["rotate-image", "crop-image"], formats=["jpg", "jpeg", "png", "webp"]),
+    
+    _tool(
+    "background-remover",
+    "AI Background Remover",
+    "image",
+    ProcessingType.SERVER.value,
+    "Remove image backgrounds automatically using AI and download a transparent PNG.",
+    long="Remove backgrounds from JPG, JPEG, PNG and WebP images using the BiRefNet AI segmentation model. The processed image is returned as a transparent PNG.",
+    how_to_use=[
+        "Upload a JPG, JPEG, PNG or WebP image.",
+        "Click the remove background button.",
+        "Wait while the AI model processes the image.",
+        "Preview and download the transparent PNG."
+    ],
+    features=[
+        "AI-powered background removal",
+        "Transparent PNG output",
+        "Supports JPG",
+        "Supports JPEG",
+        "Supports PNG",
+        "Supports WebP",
+        "Preserves original image dimensions"
+    ],
+    faq=[
+        {
+            "question": "Which image formats are supported?",
+            "answer": "JPG, JPEG, PNG and WebP images are supported."
+        },
+        {
+            "question": "What format is the result?",
+            "answer": "The result is a PNG image with a transparent background."
+        },
+        {
+            "question": "Does the tool use AI?",
+            "answer": "Yes. The tool uses the BiRefNet image segmentation model."
+        },
+        {
+            "question": "Will my original image dimensions be preserved?",
+            "answer": "Yes. The generated PNG keeps the original image dimensions."
+        }
+    ],
+    related=[
+        "compress-image",
+        "resize-image",
+        "crop-image"
+    ],
+    seo_title="AI Background Remover — Free Online Background Removal",
+    meta="Remove image backgrounds automatically with AI. Upload JPG, PNG or WebP images and download transparent PNG results.",
+    keywords=[
+        "background remover",
+        "ai background remover",
+        "remove background",
+        "image background remover",
+        "transparent background",
+        "background removal",
+        "birefnet",
+        "remove image background"
+    ],
+    formats=[
+        "jpg",
+        "jpeg",
+        "png",
+        "webp"
+    ],
+    popular=True,
+    sort=1
+),
+    
+    
     # Developer
     _tool("json-formatter", "JSON Formatter", "developer", ProcessingType.CLIENT.value, "Format and beautify JSON data.", related=["json-validator", "json-minifier"], popular=True),
     _tool("json-validator", "JSON Validator", "developer", ProcessingType.CLIENT.value, "Validate JSON syntax and structure.", related=["json-formatter", "json-minifier"]),

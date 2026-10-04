@@ -1,0 +1,35 @@
+[project]
+name = "utilai-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "bunnysheikh477-pixel", email = "bunnysheikh477.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "bcrypt>=4.2.0",
+    "dnspython>=2.8.0",
+    "email-validator>=2.2.0",
+    "fastapi>=0.115.0",
+    "mongomock-motor>=0.0.35",
+    "motor>=3.6.0",
+    "pillow>=10.4.0",
+    "pydantic-settings>=2.6.0",
+    "pymupdf>=1.24.0",
+    "pypdf>=5.1.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.18",
+    "requests>=2.34.2",
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+    "transformers>=4.46.0,<5.0.0",
+    "uvicorn[standard]>=0.32.0",
+]
+
+[project.scripts]
+utilai-backend = "utilai_backend:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
