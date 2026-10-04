@@ -1,63 +1,14 @@
-# # from contextlib import asynccontextmanager
-# # from pathlib import Path
-
-# # from fastapi import FastAPI
-# # from fastapi.middleware.cors import CORSMiddleware
-# # from fastapi.responses import JSONResponse
-
-# # from app.api.v1.router import api_router
-# # from app.core.config import get_settings
-# # from app.core.database import close_db, connect_db
-# # from app.core.exceptions import AppException
-# # from app.db.init_db import init_db
-
-# # settings = get_settings()
-
-
-# # @asynccontextmanager
-# # async def lifespan(app: FastAPI):
-# #     db = await connect_db()
-# #     await init_db(db)
-# #     Path(settings.STORAGE_DIR).mkdir(parents=True, exist_ok=True)
-# #     yield
-# #     await close_db()
-
-
-# # app = FastAPI(title=settings.APP_NAME, version="1.0.0", lifespan=lifespan, docs_url="/docs" if settings.DEBUG else None)
-
-# # app.add_middleware(
-# #     CORSMiddleware,
-# #     allow_origins=settings.cors_origins,
-# #     allow_credentials=True,
-# #     allow_methods=["*"],
-# #     allow_headers=["*"],
-# # )
-
-
-# # @app.exception_handler(AppException)
-# # async def app_exc_handler(_, exc: AppException):
-# #     return JSONResponse(status_code=exc.status_code, content={"success": False, "message": exc.message, "error_code": exc.error_code})
-
-
-# # app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-
-
-# # @app.get("/health")
-# # async def health():
-# #     return {"status": "healthy", "app": settings.APP_NAME}
-
-
-
-
 
 # from __future__ import annotations
 
 # from contextlib import asynccontextmanager
 # import logging
+# import os
 # import shutil
 # import uuid
 # from pathlib import Path
 
+# import uvicorn
 # from fastapi import FastAPI, File, HTTPException, UploadFile
 # from fastapi.middleware.cors import CORSMiddleware
 # from fastapi.responses import FileResponse, JSONResponse
@@ -69,7 +20,9 @@
 # from app.core.exceptions import AppException
 # from app.db.init_db import init_db
 
+# import os
 
+# HF_TOKEN = os.getenv("HF_Token")
 # # ============================================================
 # # LOGGING
 # # ============================================================
@@ -101,18 +54,46 @@
 # )
 
 
+# # ============================================================
+# # SETTINGS
+# # ============================================================
+
 # settings = get_settings()
 
+
+# # ============================================================
+# # DATABASE / APPLICATION LIFESPAN
+# # ============================================================
 
 # @asynccontextmanager
 # async def lifespan(app: FastAPI):
 #     database = await connect_db()
+
 #     try:
 #         await init_db(database)
-#         Path(settings.STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+
+#         Path(settings.STORAGE_DIR).mkdir(
+#             parents=True,
+#             exist_ok=True,
+#         )
+
+#         logger.info("Application startup complete.")
+#         logger.info(
+#             "Database mode: %s",
+#             "memory" if is_using_memory_db() else "mongodb",
+#         )
+
 #         yield
+
 #     finally:
 #         await close_db()
+
+#         logger.info("Database connection closed.")
+
+
+# # ============================================================
+# # FASTAPI APPLICATION
+# # ============================================================
 
 # app = FastAPI(
 #     title=settings.APP_NAME,
@@ -134,8 +115,20 @@
 #     allow_headers=["*"],
 # )
 
-# app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
+# # ============================================================
+# # API ROUTER
+# # ============================================================
+
+# app.include_router(
+#     api_router,
+#     prefix=settings.API_V1_PREFIX,
+# )
+
+
+# # ============================================================
+# # APPLICATION EXCEPTION HANDLER
+# # ============================================================
 
 # @app.exception_handler(AppException)
 # async def app_exception_handler(_, exc: AppException):
@@ -150,18 +143,25 @@
 
 
 # # ============================================================
-# # HEALTH
+# # HEALTH CHECK
 # # ============================================================
 
 # @app.get("/health")
 # async def health():
-
 #     return {
 #         "success": True,
 #         "status": "healthy",
 #         "service": settings.APP_NAME,
-#         "database": "memory" if is_using_memory_db() else "mongodb",
-#         "device": "remote" if birefnet_service.use_remote else str(DEVICE),
+#         "database": (
+#             "memory"
+#             if is_using_memory_db()
+#             else "mongodb"
+#         ),
+#         "device": (
+#             "remote"
+#             if birefnet_service.use_remote
+#             else str(DEVICE)
+#         ),
 #     }
 
 
@@ -173,13 +173,11 @@
 # def remove_background(
 #     file: UploadFile = File(...),
 # ):
-
 #     # --------------------------------------------------------
 #     # VALIDATE FILE
 #     # --------------------------------------------------------
 
 #     if not file.filename:
-
 #         raise HTTPException(
 #             status_code=400,
 #             detail="No filename provided.",
@@ -197,7 +195,6 @@
 #     ).suffix.lower()
 
 #     if extension not in allowed_extensions:
-
 #         raise HTTPException(
 #             status_code=400,
 #             detail=(
@@ -207,7 +204,7 @@
 #         )
 
 #     # --------------------------------------------------------
-#     # UNIQUE ID
+#     # CREATE UNIQUE JOB ID
 #     # --------------------------------------------------------
 
 #     job_id = uuid.uuid4().hex
@@ -223,15 +220,11 @@
 #     )
 
 #     try:
-
 #         # ----------------------------------------------------
-#         # SAVE UPLOAD
+#         # SAVE UPLOADED FILE
 #         # ----------------------------------------------------
 
-#         with input_path.open(
-#             "wb"
-#         ) as buffer:
-
+#         with input_path.open("wb") as buffer:
 #             shutil.copyfileobj(
 #                 file.file,
 #                 buffer,
@@ -243,7 +236,7 @@
 #         )
 
 #         # ----------------------------------------------------
-#         # PROCESS
+#         # PROCESS IMAGE
 #         # ----------------------------------------------------
 
 #         birefnet_service.remove_background(
@@ -252,7 +245,17 @@
 #         )
 
 #         # ----------------------------------------------------
-#         # RESPONSE
+#         # CHECK OUTPUT
+#         # ----------------------------------------------------
+
+#         if not output_path.exists():
+#             raise RuntimeError(
+#                 "Background removal completed "
+#                 "but output file was not created."
+#             )
+
+#         # ----------------------------------------------------
+#         # RETURN RESULT
 #         # ----------------------------------------------------
 
 #         return FileResponse(
@@ -261,8 +264,10 @@
 #             filename="background_removed.png",
 #         )
 
-#     except Exception as exc:
+#     except HTTPException:
+#         raise
 
+#     except Exception as exc:
 #         logger.exception(
 #             "Background removal failed."
 #         )
@@ -278,31 +283,30 @@
 #         )
 
 #     finally:
+#         # ----------------------------------------------------
+#         # REMOVE ORIGINAL UPLOAD
+#         # ----------------------------------------------------
 
-#         # Remove uploaded original.
 #         if input_path.exists():
-
 #             input_path.unlink(
 #                 missing_ok=True
 #             )
 
 
 # # ============================================================
-# # RESULT
+# # GET RESULT
 # # ============================================================
 
 # @app.get("/result/{job_id}")
 # async def get_result(
 #     job_id: str,
 # ):
-
 #     output_path = (
 #         OUTPUT_DIR
 #         / f"{job_id}.png"
 #     )
 
 #     if not output_path.exists():
-
 #         raise HTTPException(
 #             status_code=404,
 #             detail="Result not found.",
@@ -313,6 +317,36 @@
 #         media_type="image/png",
 #         filename="background_removed.png",
 #     )
+
+
+# # ============================================================
+# # SERVER ENTRY POINT
+# # ============================================================
+
+# if __name__ == "__main__":
+#     # Railway provides PORT as an environment variable.
+#     # If PORT is not available, use 8001 for local development.
+
+#     port = int(
+#         os.environ.get(
+#             "PORT",
+#             "8001",
+#         )
+#     )
+
+#     logger.info(
+#         "Starting server on 0.0.0.0:%s",
+#         port,
+#     )
+
+#     uvicorn.run(
+#         app,
+#         host="0.0.0.0",
+#         port=port,
+#     )
+
+
+
 
 
 
@@ -328,6 +362,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -335,7 +370,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from app.api.v1.router import api_router
 from app.birefnet import DEVICE, birefnet_service
 from app.core.config import get_settings
-from app.core.database import close_db, connect_db, is_using_memory_db
+from app.core.database import (
+    close_db,
+    connect_db,
+    is_using_memory_db,
+)
 from app.core.exceptions import AppException
 from app.db.init_db import init_db
 
@@ -379,7 +418,7 @@ settings = get_settings()
 
 
 # ============================================================
-# DATABASE / APPLICATION LIFESPAN
+# APPLICATION LIFESPAN
 # ============================================================
 
 @asynccontextmanager
@@ -394,11 +433,17 @@ async def lifespan(app: FastAPI):
             exist_ok=True,
         )
 
-        logger.info("Application startup complete.")
+        logger.info("========================================")
+        logger.info("Application startup complete")
         logger.info(
             "Database mode: %s",
             "memory" if is_using_memory_db() else "mongodb",
         )
+        logger.info(
+            "BiRefNet mode: %s",
+            "remote" if birefnet_service.use_remote else str(DEVICE),
+        )
+        logger.info("========================================")
 
         yield
 
@@ -448,7 +493,10 @@ app.include_router(
 # ============================================================
 
 @app.exception_handler(AppException)
-async def app_exception_handler(_, exc: AppException):
+async def app_exception_handler(
+    _,
+    exc: AppException,
+):
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -571,6 +619,11 @@ def remove_background(
                 "but output file was not created."
             )
 
+        logger.info(
+            "Background removal completed: %s",
+            output_path,
+        )
+
         # ----------------------------------------------------
         # RETURN RESULT
         # ----------------------------------------------------
@@ -586,12 +639,12 @@ def remove_background(
 
     except Exception as exc:
         logger.exception(
-            "Background removal failed."
+            "Background removal failed.",
         )
 
         if output_path.exists():
             output_path.unlink(
-                missing_ok=True
+                missing_ok=True,
             )
 
         raise HTTPException(
@@ -606,7 +659,7 @@ def remove_background(
 
         if input_path.exists():
             input_path.unlink(
-                missing_ok=True
+                missing_ok=True,
             )
 
 
@@ -641,8 +694,8 @@ async def get_result(
 # ============================================================
 
 if __name__ == "__main__":
-    # Railway provides PORT as an environment variable.
-    # If PORT is not available, use 8001 for local development.
+    # Railway provides PORT automatically.
+    # For local development, use port 8001.
 
     port = int(
         os.environ.get(
