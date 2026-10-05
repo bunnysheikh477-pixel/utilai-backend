@@ -1,3 +1,8 @@
+
+
+
+
+
 # from __future__ import annotations
 
 # import json
@@ -13,37 +18,89 @@
 
 # from app.core.config import get_settings
 
+
 # logger = logging.getLogger(__name__)
 
 # _settings = get_settings()
+
+
+# # ============================================================
+# # Environment / Model Configuration
+# # ============================================================
 
 # MODEL_NAME = (
 #     os.getenv("BIREFNET_MODEL_NAME")
 #     or _settings.BIREFNET_MODEL_NAME
 #     or "ZhengPeng7/BiRefNet"
 # )
+
 # REMOTE_URL = (
 #     os.getenv("BIREFNET_REMOTE_URL")
 #     or _settings.BIREFNET_REMOTE_URL
 #     or ""
 # ).strip()
+
 # REMOTE_MODE = (
 #     os.getenv("BIREFNET_MODE")
 #     or _settings.BIREFNET_MODE
 #     or "local"
 # ).strip().lower() == "remote"
+
+
+# # Hugging Face token
+# #
+# # IMPORTANT:
+# # Do NOT put the real token directly in this file.
+# # Railway should provide it through:
+# #
+# # HF_TOKEN=hf_xxxxxxxxxxxxxxxxx
+# #
+# HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
+
+
+# # Optional model revision.
+# #
+# # You can leave this empty for now.
+# # Later you can set a specific Hugging Face commit/revision
+# # for better reproducibility and security.
+# BIREFNET_REVISION = os.getenv(
+#     "BIREFNET_REVISION",
+#     "",
+# ).strip()
+
+
 # MEAN = [0.485, 0.456, 0.406]
 # STD = [0.229, 0.224, 0.225]
 
+
+# # ============================================================
+# # Device Configuration
+# # ============================================================
+
 # if torch.cuda.is_available():
 #     torch.cuda.set_device(0)
+
 #     torch.backends.cuda.matmul.allow_tf32 = True
 #     torch.backends.cudnn.allow_tf32 = True
+
 
 # DEVICE = torch.device(
 #     "cuda" if torch.cuda.is_available() else "cpu"
 # )
-# IMAGE_SIZE = (512, 512) if DEVICE.type == "cpu" else (1024, 1024)
+
+
+# # CPU -> smaller image to reduce RAM usage
+# # GPU -> larger image for better quality
+# IMAGE_SIZE = (
+#     (1024, 1024)
+#     if DEVICE.type == "cuda"
+#     else (512, 512)
+# )
+
+
+# # ============================================================
+# # Image Transform
+# # ============================================================
 
 # transform = transforms.Compose(
 #     [
@@ -54,35 +111,136 @@
 # )
 
 
+# # ============================================================
+# # BiRefNet Service
+# # ============================================================
+
 # class BiRefNetService:
 
 #     def __init__(self):
 #         self.remote_url = REMOTE_URL
-#         self.use_remote = REMOTE_MODE or bool(self.remote_url)
+#         self.use_remote = (
+#             REMOTE_MODE
+#             or bool(self.remote_url)
+#         )
 
 #         logger.info("=" * 60)
 #         logger.info("Initializing BiRefNet")
 #         logger.info("=" * 60)
 
+#         # ----------------------------------------------------
+#         # Remote mode
+#         # ----------------------------------------------------
+
 #         if self.use_remote:
-#             logger.info("Remote BiRefNet mode enabled.")
-#             logger.info("Remote URL: %s", self.remote_url)
+#             logger.info(
+#                 "Remote BiRefNet mode enabled."
+#             )
+
+#             logger.info(
+#                 "Remote URL: %s",
+#                 self.remote_url,
+#             )
+
 #             self.model = None
+#             self.dtype = torch.float32
+
 #             return
 
-#         logger.info("CUDA available: %s", torch.cuda.is_available())
-#         logger.info("Device: %s", DEVICE)
-#         if torch.cuda.is_available():
-#             logger.info("GPU: %s", torch.cuda.get_device_name(0))
-#         logger.info("Model: %s", MODEL_NAME)
+#         # ----------------------------------------------------
+#         # Local model mode
+#         # ----------------------------------------------------
 
-#         self.model = AutoModelForImageSegmentation.from_pretrained(
-#             MODEL_NAME,
-#             trust_remote_code=True,
+#         logger.info(
+#             "CUDA available: %s",
+#             torch.cuda.is_available(),
 #         )
 
+#         logger.info(
+#             "Device: %s",
+#             DEVICE,
+#         )
+
+#         if torch.cuda.is_available():
+#             logger.info(
+#                 "GPU: %s",
+#                 torch.cuda.get_device_name(0),
+#             )
+
+#         logger.info(
+#             "Model: %s",
+#             MODEL_NAME,
+#         )
+
+#         # ----------------------------------------------------
+#         # Hugging Face authentication
+#         # ----------------------------------------------------
+
+#         if HF_TOKEN:
+#             logger.info(
+#                 "Hugging Face token detected."
+#             )
+#         else:
+#             logger.warning(
+#                 "HF_TOKEN is not configured. "
+#                 "Hugging Face requests will be unauthenticated."
+#             )
+
+#         # ----------------------------------------------------
+#         # Model loading arguments
+#         # ----------------------------------------------------
+
+#         model_kwargs = {
+#             "trust_remote_code": True,
+#         }
+
+#         # Only send token when it exists.
+#         #
+#         # This prevents passing an empty token to
+#         # transformers/Hugging Face.
+#         if HF_TOKEN:
+#             model_kwargs["token"] = HF_TOKEN
+
+#         # Optional revision pinning.
+#         #
+#         # Example:
+#         # BIREFNET_REVISION=<commit-hash>
+#         #
+#         # We intentionally do not hardcode a fake revision.
+#         if BIREFNET_REVISION:
+#             model_kwargs["revision"] = BIREFNET_REVISION
+
+#             logger.info(
+#                 "BiRefNet revision: %s",
+#                 BIREFNET_REVISION,
+#             )
+
+#         # ----------------------------------------------------
+#         # Download / load BiRefNet
+#         # ----------------------------------------------------
+
+#         logger.info(
+#             "Loading BiRefNet from Hugging Face..."
+#         )
+
+#         self.model = (
+#             AutoModelForImageSegmentation.from_pretrained(
+#                 MODEL_NAME,
+#                 **model_kwargs,
+#             )
+#         )
+
+#         # ----------------------------------------------------
+#         # Move model to CPU/GPU
+#         # ----------------------------------------------------
+
 #         self.model = self.model.to(DEVICE)
+
 #         self.model.eval()
+
+#         # ----------------------------------------------------
+#         # Detect model dtype
+#         # ----------------------------------------------------
 
 #         self.dtype = next(
 #             self.model.parameters()
@@ -97,11 +255,19 @@
 #             "BiRefNet loaded successfully."
 #         )
 
+#         logger.info("=" * 60)
+
+
+#     # ========================================================
+#     # Remote BiRefNet
+#     # ========================================================
+
 #     def _remove_background_remote(
 #         self,
 #         input_path: str | Path,
 #         output_path: str | Path,
 #     ) -> dict:
+
 #         if not self.remote_url:
 #             raise RuntimeError(
 #                 "BIREFNET_REMOTE_URL is not configured."
@@ -124,42 +290,84 @@
 #             file_bytes = file_obj.read()
 
 #         boundary = "----BiRefNetBoundary"
+
 #         body = (
-#             b"--" + boundary.encode() + b"\r\n"
-#             + b'Content-Disposition: form-data; name="file"; filename="' + input_path.name.encode() + b'"\r\n'
+#             b"--"
+#             + boundary.encode()
+#             + b"\r\n"
+#             + b'Content-Disposition: form-data; '
+#               b'name="file"; filename="'
+#             + input_path.name.encode()
+#             + b'"\r\n'
 #             + b"Content-Type: image/png\r\n\r\n"
 #             + file_bytes
-#             + b"\r\n--" + boundary.encode() + b"--\r\n"
+#             + b"\r\n--"
+#             + boundary.encode()
+#             + b"--\r\n"
 #         )
 
 #         req = request.Request(
 #             self.remote_url,
 #             data=body,
 #             headers={
-#                 "Content-Type": f"multipart/form-data; boundary={boundary}",
-#                 "Accept": "image/png, application/json",
+#                 "Content-Type": (
+#                     "multipart/form-data; "
+#                     f"boundary={boundary}"
+#                 ),
+#                 "Accept": (
+#                     "image/png, application/json"
+#                 ),
 #             },
 #             method="POST",
 #         )
 
 #         try:
-#             with request.urlopen(req, timeout=600) as response:
-#                 content_type = response.headers.get_content_type()
+#             with request.urlopen(
+#                 req,
+#                 timeout=600,
+#             ) as response:
+
+#                 content_type = (
+#                     response.headers.get_content_type()
+#                 )
+
 #                 payload = response.read()
+
 #         except error.HTTPError as exc:
+
 #             try:
-#                 detail = exc.read().decode("utf-8", errors="replace")
+#                 detail = exc.read().decode(
+#                     "utf-8",
+#                     errors="replace",
+#                 )
 #             except Exception:
 #                 detail = str(exc)
+
 #             raise RuntimeError(
-#                 f"Remote BiRefNet request failed: {detail}"
+#                 "Remote BiRefNet request failed: "
+#                 f"{detail}"
 #             ) from exc
 
-#         output_path.parent.mkdir(parents=True, exist_ok=True)
+#         output_path.parent.mkdir(
+#             parents=True,
+#             exist_ok=True,
+#         )
+
+#         # ----------------------------------------------------
+#         # PNG response
+#         # ----------------------------------------------------
 
 #         if content_type == "image/png":
-#             output_path.write_bytes(payload)
-#             logger.info("Saved remote result: %s", output_path)
+
+#             output_path.write_bytes(
+#                 payload
+#             )
+
+#             logger.info(
+#                 "Saved remote result: %s",
+#                 output_path,
+#             )
+
 #             return {
 #                 "filename": output_path.name,
 #                 "width": 0,
@@ -167,22 +375,46 @@
 #                 "output_path": str(output_path),
 #             }
 
+#         # ----------------------------------------------------
+#         # JSON response
+#         # ----------------------------------------------------
+
 #         try:
-#             data = json.loads(payload.decode("utf-8"))
+#             data = json.loads(
+#                 payload.decode("utf-8")
+#             )
+
 #         except Exception as exc:
+
 #             raise RuntimeError(
-#                 "Remote BiRefNet returned an unexpected response."
+#                 "Remote BiRefNet returned "
+#                 "an unexpected response."
 #             ) from exc
 
-#         if isinstance(data, dict) and "image" in data:
+#         if (
+#             isinstance(data, dict)
+#             and "image" in data
+#         ):
+
 #             image_bytes = data["image"]
-#             if isinstance(image_bytes, str):
+
+#             if isinstance(
+#                 image_bytes,
+#                 str,
+#             ):
 #                 output_path.write_bytes(
 #                     image_bytes.encode("utf-8")
 #                 )
 #             else:
-#                 output_path.write_bytes(image_bytes)
-#             logger.info("Saved remote result: %s", output_path)
+#                 output_path.write_bytes(
+#                     image_bytes
+#                 )
+
+#             logger.info(
+#                 "Saved remote result: %s",
+#                 output_path,
+#             )
+
 #             return {
 #                 "filename": output_path.name,
 #                 "width": 0,
@@ -191,19 +423,35 @@
 #             }
 
 #         raise RuntimeError(
-#             f"Remote BiRefNet response was not an image: {data}"
+#             "Remote BiRefNet response was not "
+#             f"an image: {data}"
 #         )
+
+
+#     # ========================================================
+#     # Main Background Removal
+#     # ========================================================
 
 #     def remove_background(
 #         self,
 #         input_path: str | Path,
 #         output_path: str | Path,
 #     ) -> dict:
+
+#         # ----------------------------------------------------
+#         # Remote mode
+#         # ----------------------------------------------------
+
 #         if self.use_remote:
+
 #             return self._remove_background_remote(
 #                 input_path,
 #                 output_path,
 #             )
+
+#         # ----------------------------------------------------
+#         # Local mode
+#         # ----------------------------------------------------
 
 #         input_path = Path(input_path)
 #         output_path = Path(output_path)
@@ -218,20 +466,35 @@
 #             input_path,
 #         )
 
+#         # ----------------------------------------------------
+#         # Load image
+#         # ----------------------------------------------------
+
 #         image = Image.open(
 #             input_path
 #         ).convert("RGB")
 
 #         original_size = image.size
 
+#         # ----------------------------------------------------
+#         # Transform image
+#         # ----------------------------------------------------
+
 #         tensor = transform(image)
+
 #         tensor = tensor.unsqueeze(0)
+
 #         tensor = tensor.to(
 #             device=DEVICE,
 #             dtype=self.dtype,
 #         )
 
+#         # ----------------------------------------------------
+#         # Model inference
+#         # ----------------------------------------------------
+
 #         with torch.inference_mode():
+
 #             prediction = self.model(
 #                 tensor
 #             )
@@ -246,23 +509,48 @@
 #                 prediction,
 #                 "logits",
 #             ):
-#                 prediction = prediction.logits
+#                 prediction = (
+#                     prediction.logits
+#                 )
+
+#         # ----------------------------------------------------
+#         # Convert prediction to mask
+#         # ----------------------------------------------------
 
 #         prediction = prediction.float()
+
 #         prediction = prediction.sigmoid()
+
 #         prediction = prediction.squeeze()
 
 #         mask = transforms.ToPILImage()(
 #             prediction.cpu()
 #         )
 
+#         # ----------------------------------------------------
+#         # Restore original image size
+#         # ----------------------------------------------------
+
 #         mask = mask.resize(
 #             original_size,
 #             Image.Resampling.LANCZOS,
 #         )
 
-#         result = image.convert("RGBA")
-#         result.putalpha(mask)
+#         # ----------------------------------------------------
+#         # Apply alpha mask
+#         # ----------------------------------------------------
+
+#         result = image.convert(
+#             "RGBA"
+#         )
+
+#         result.putalpha(
+#             mask
+#         )
+
+#         # ----------------------------------------------------
+#         # Save output
+#         # ----------------------------------------------------
 
 #         output_path.parent.mkdir(
 #             parents=True,
@@ -287,7 +575,12 @@
 #         }
 
 
+# # ============================================================
+# # Global BiRefNet Service
+# # ============================================================
+
 # birefnet_service = BiRefNetService()
+
 
 
 
@@ -337,27 +630,32 @@ REMOTE_MODE = (
 ).strip().lower() == "remote"
 
 
-# Hugging Face token
+# Hugging Face token.
 #
-# IMPORTANT:
-# Do NOT put the real token directly in this file.
-# Railway should provide it through:
+# Set this in Railway Variables:
 #
 # HF_TOKEN=hf_xxxxxxxxxxxxxxxxx
 #
+# Never hard-code the real token here.
 HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
 
 
-# Optional model revision.
+# Optional Hugging Face revision.
 #
-# You can leave this empty for now.
-# Later you can set a specific Hugging Face commit/revision
-# for better reproducibility and security.
+# Recommended for production:
+#
+# BIREFNET_REVISION=<exact-commit-hash>
+#
+# Do NOT put a random/fake hash here.
 BIREFNET_REVISION = os.getenv(
     "BIREFNET_REVISION",
     "",
 ).strip()
 
+
+# ============================================================
+# Image Normalization
+# ============================================================
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -368,19 +666,28 @@ STD = [0.229, 0.224, 0.225]
 # ============================================================
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(0)
+    try:
+        torch.cuda.set_device(0)
 
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
+    except Exception as exc:
+        logger.warning(
+            "Could not configure CUDA optimizations: %s",
+            exc,
+        )
 
 
 DEVICE = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
 )
 
 
-# CPU -> smaller image to reduce RAM usage
-# GPU -> larger image for better quality
+# GPU gets higher inference resolution.
+# CPU gets smaller resolution to reduce RAM usage.
 IMAGE_SIZE = (
     (1024, 1024)
     if DEVICE.type == "cuda"
@@ -394,9 +701,15 @@ IMAGE_SIZE = (
 
 transform = transforms.Compose(
     [
-        transforms.Resize(IMAGE_SIZE),
+        transforms.Resize(
+            IMAGE_SIZE,
+            interpolation=transforms.InterpolationMode.BILINEAR,
+        ),
         transforms.ToTensor(),
-        transforms.Normalize(MEAN, STD),
+        transforms.Normalize(
+            MEAN,
+            STD,
+        ),
     ]
 )
 
@@ -408,11 +721,16 @@ transform = transforms.Compose(
 class BiRefNetService:
 
     def __init__(self):
+
         self.remote_url = REMOTE_URL
+
         self.use_remote = (
             REMOTE_MODE
             or bool(self.remote_url)
         )
+
+        self.model = None
+        self.dtype = torch.float32
 
         logger.info("=" * 60)
         logger.info("Initializing BiRefNet")
@@ -423,6 +741,13 @@ class BiRefNetService:
         # ----------------------------------------------------
 
         if self.use_remote:
+
+            if not self.remote_url:
+                raise RuntimeError(
+                    "BiRefNet remote mode is enabled, "
+                    "but BIREFNET_REMOTE_URL is not configured."
+                )
+
             logger.info(
                 "Remote BiRefNet mode enabled."
             )
@@ -432,13 +757,14 @@ class BiRefNetService:
                 self.remote_url,
             )
 
-            self.model = None
-            self.dtype = torch.float32
+            logger.info(
+                "Local BiRefNet model will not be loaded."
+            )
 
             return
 
         # ----------------------------------------------------
-        # Local model mode
+        # Local mode
         # ----------------------------------------------------
 
         logger.info(
@@ -451,11 +777,26 @@ class BiRefNetService:
             DEVICE,
         )
 
-        if torch.cuda.is_available():
-            logger.info(
-                "GPU: %s",
-                torch.cuda.get_device_name(0),
-            )
+        if DEVICE.type == "cuda":
+
+            try:
+                logger.info(
+                    "GPU: %s",
+                    torch.cuda.get_device_name(0),
+                )
+
+                logger.info(
+                    "GPU memory: %.2f GB",
+                    torch.cuda.get_device_properties(0).total_memory
+                    / (1024 ** 3),
+                )
+
+            except Exception as exc:
+
+                logger.warning(
+                    "Could not read GPU information: %s",
+                    exc,
+                )
 
         logger.info(
             "Model: %s",
@@ -467,10 +808,13 @@ class BiRefNetService:
         # ----------------------------------------------------
 
         if HF_TOKEN:
+
             logger.info(
                 "Hugging Face token detected."
             )
+
         else:
+
             logger.warning(
                 "HF_TOKEN is not configured. "
                 "Hugging Face requests will be unauthenticated."
@@ -484,47 +828,82 @@ class BiRefNetService:
             "trust_remote_code": True,
         }
 
-        # Only send token when it exists.
-        #
-        # This prevents passing an empty token to
-        # transformers/Hugging Face.
+        # Add Hugging Face token only when available.
         if HF_TOKEN:
+
             model_kwargs["token"] = HF_TOKEN
 
-        # Optional revision pinning.
-        #
-        # Example:
-        # BIREFNET_REVISION=<commit-hash>
-        #
-        # We intentionally do not hardcode a fake revision.
+        # ----------------------------------------------------
+        # Revision pinning
+        # ----------------------------------------------------
+
         if BIREFNET_REVISION:
-            model_kwargs["revision"] = BIREFNET_REVISION
+
+            model_kwargs["revision"] = (
+                BIREFNET_REVISION
+            )
 
             logger.info(
-                "BiRefNet revision: %s",
+                "BiRefNet revision pinned to: %s",
                 BIREFNET_REVISION,
             )
 
+        else:
+
+            logger.warning(
+                "BIREFNET_REVISION is not configured. "
+                "BiRefNet custom code will use the repository's "
+                "current revision. For production, pin an exact "
+                "Hugging Face commit hash."
+            )
+
         # ----------------------------------------------------
-        # Download / load BiRefNet
+        # Load model
         # ----------------------------------------------------
 
         logger.info(
             "Loading BiRefNet from Hugging Face..."
         )
 
-        self.model = (
-            AutoModelForImageSegmentation.from_pretrained(
-                MODEL_NAME,
-                **model_kwargs,
+        try:
+
+            self.model = (
+                AutoModelForImageSegmentation.from_pretrained(
+                    MODEL_NAME,
+                    **model_kwargs,
+                )
             )
-        )
+
+        except Exception:
+
+            logger.exception(
+                "Failed to load BiRefNet model."
+            )
+
+            raise
 
         # ----------------------------------------------------
-        # Move model to CPU/GPU
+        # Move model to device
         # ----------------------------------------------------
 
-        self.model = self.model.to(DEVICE)
+        try:
+
+            self.model = self.model.to(
+                DEVICE
+            )
+
+        except Exception:
+
+            logger.exception(
+                "Failed to move BiRefNet to device: %s",
+                DEVICE,
+            )
+
+            raise
+
+        # ----------------------------------------------------
+        # Evaluation mode
+        # ----------------------------------------------------
 
         self.model.eval()
 
@@ -532,9 +911,20 @@ class BiRefNetService:
         # Detect model dtype
         # ----------------------------------------------------
 
-        self.dtype = next(
-            self.model.parameters()
-        ).dtype
+        try:
+
+            self.dtype = next(
+                self.model.parameters()
+            ).dtype
+
+        except StopIteration:
+
+            logger.warning(
+                "Could not determine model dtype. "
+                "Using float32."
+            )
+
+            self.dtype = torch.float32
 
         logger.info(
             "Model dtype: %s",
@@ -545,8 +935,12 @@ class BiRefNetService:
             "BiRefNet loaded successfully."
         )
 
-        logger.info("=" * 60)
+        logger.info(
+            "BiRefNet device: %s",
+            DEVICE,
+        )
 
+        logger.info("=" * 60)
 
     # ========================================================
     # Remote BiRefNet
@@ -559,14 +953,21 @@ class BiRefNetService:
     ) -> dict:
 
         if not self.remote_url:
+
             raise RuntimeError(
                 "BIREFNET_REMOTE_URL is not configured."
             )
 
-        input_path = Path(input_path)
-        output_path = Path(output_path)
+        input_path = Path(
+            input_path
+        )
+
+        output_path = Path(
+            output_path
+        )
 
         if not input_path.exists():
+
             raise FileNotFoundError(
                 f"Input file not found: {input_path}"
             )
@@ -576,17 +977,28 @@ class BiRefNetService:
             self.remote_url,
         )
 
+        # ----------------------------------------------------
+        # Read image
+        # ----------------------------------------------------
+
         with input_path.open("rb") as file_obj:
+
             file_bytes = file_obj.read()
 
         boundary = "----BiRefNetBoundary"
+
+        # ----------------------------------------------------
+        # Multipart request body
+        # ----------------------------------------------------
 
         body = (
             b"--"
             + boundary.encode()
             + b"\r\n"
-            + b'Content-Disposition: form-data; '
-              b'name="file"; filename="'
+            + (
+                b'Content-Disposition: form-data; '
+                b'name="file"; filename="'
+            )
             + input_path.name.encode()
             + b'"\r\n'
             + b"Content-Type: image/png\r\n\r\n"
@@ -611,7 +1023,12 @@ class BiRefNetService:
             method="POST",
         )
 
+        # ----------------------------------------------------
+        # Send request
+        # ----------------------------------------------------
+
         try:
+
             with request.urlopen(
                 req,
                 timeout=600,
@@ -626,17 +1043,37 @@ class BiRefNetService:
         except error.HTTPError as exc:
 
             try:
+
                 detail = exc.read().decode(
                     "utf-8",
                     errors="replace",
                 )
+
             except Exception:
+
                 detail = str(exc)
 
             raise RuntimeError(
                 "Remote BiRefNet request failed: "
                 f"{detail}"
             ) from exc
+
+        except error.URLError as exc:
+
+            raise RuntimeError(
+                "Could not connect to remote BiRefNet service: "
+                f"{exc}"
+            ) from exc
+
+        except TimeoutError as exc:
+
+            raise RuntimeError(
+                "Remote BiRefNet request timed out."
+            ) from exc
+
+        # ----------------------------------------------------
+        # Create output directory
+        # ----------------------------------------------------
 
         output_path.parent.mkdir(
             parents=True,
@@ -670,6 +1107,7 @@ class BiRefNetService:
         # ----------------------------------------------------
 
         try:
+
             data = json.loads(
                 payload.decode("utf-8")
             )
@@ -677,27 +1115,47 @@ class BiRefNetService:
         except Exception as exc:
 
             raise RuntimeError(
-                "Remote BiRefNet returned "
-                "an unexpected response."
+                "Remote BiRefNet returned an unexpected "
+                "non-JSON response."
             ) from exc
+
+        # ----------------------------------------------------
+        # JSON image response
+        # ----------------------------------------------------
 
         if (
             isinstance(data, dict)
             and "image" in data
         ):
 
-            image_bytes = data["image"]
+            image_data = data["image"]
 
+            # If the remote service returns a path/string,
+            # this branch assumes it contains image bytes
+            # encoded as text, matching your previous API.
             if isinstance(
-                image_bytes,
+                image_data,
                 str,
             ):
+
                 output_path.write_bytes(
-                    image_bytes.encode("utf-8")
+                    image_data.encode("utf-8")
                 )
-            else:
+
+            elif isinstance(
+                image_data,
+                (bytes, bytearray),
+            ):
+
                 output_path.write_bytes(
-                    image_bytes
+                    image_data
+                )
+
+            else:
+
+                raise RuntimeError(
+                    "Remote BiRefNet returned an unsupported "
+                    "'image' value."
                 )
 
             logger.info(
@@ -713,66 +1171,60 @@ class BiRefNetService:
             }
 
         raise RuntimeError(
-            "Remote BiRefNet response was not "
-            f"an image: {data}"
+            "Remote BiRefNet response was not an image: "
+            f"{data}"
         )
 
-
     # ========================================================
-    # Main Background Removal
+    # Local Background Removal
     # ========================================================
 
-    def remove_background(
+    def _remove_background_local(
         self,
-        input_path: str | Path,
-        output_path: str | Path,
+        input_path: Path,
+        output_path: Path,
     ) -> dict:
 
-        # ----------------------------------------------------
-        # Remote mode
-        # ----------------------------------------------------
+        if self.model is None:
 
-        if self.use_remote:
-
-            return self._remove_background_remote(
-                input_path,
-                output_path,
+            raise RuntimeError(
+                "BiRefNet model is not loaded."
             )
 
         # ----------------------------------------------------
-        # Local mode
+        # Load image
         # ----------------------------------------------------
-
-        input_path = Path(input_path)
-        output_path = Path(output_path)
-
-        if not input_path.exists():
-            raise FileNotFoundError(
-                f"Input file not found: {input_path}"
-            )
 
         logger.info(
             "Processing: %s",
             input_path,
         )
 
-        # ----------------------------------------------------
-        # Load image
-        # ----------------------------------------------------
+        try:
 
-        image = Image.open(
-            input_path
-        ).convert("RGB")
+            image = Image.open(
+                input_path
+            ).convert("RGB")
+
+        except Exception as exc:
+
+            raise RuntimeError(
+                f"Could not open image: {input_path}"
+            ) from exc
 
         original_size = image.size
 
         # ----------------------------------------------------
-        # Transform image
+        # Transform
         # ----------------------------------------------------
 
-        tensor = transform(image)
+        tensor = transform(
+            image
+        )
 
-        tensor = tensor.unsqueeze(0)
+        tensor = tensor.unsqueeze(
+            0
+        )
 
         tensor = tensor.to(
             device=DEVICE,
@@ -780,28 +1232,59 @@ class BiRefNetService:
         )
 
         # ----------------------------------------------------
-        # Model inference
+        # Inference
         # ----------------------------------------------------
 
-        with torch.inference_mode():
+        try:
 
-            prediction = self.model(
-                tensor
+            with torch.inference_mode():
+
+                prediction = self.model(
+                    tensor
+                )
+
+        except Exception:
+
+            logger.exception(
+                "BiRefNet inference failed."
             )
 
-            if isinstance(
-                prediction,
-                (tuple, list),
-            ):
-                prediction = prediction[-1]
+            raise
 
-            elif hasattr(
-                prediction,
-                "logits",
-            ):
-                prediction = (
-                    prediction.logits
-                )
+        # ----------------------------------------------------
+        # Extract prediction
+        # ----------------------------------------------------
+
+        if isinstance(
+            prediction,
+            (tuple, list),
+        ):
+
+            prediction = prediction[-1]
+
+        elif hasattr(
+            prediction,
+            "logits",
+        ):
+
+            prediction = (
+                prediction.logits
+            )
+
+        # ----------------------------------------------------
+        # Validate prediction
+        # ----------------------------------------------------
+
+        if not isinstance(
+            prediction,
+            torch.Tensor,
+        ):
+
+            raise RuntimeError(
+                "BiRefNet returned an unsupported "
+                "prediction type: "
+                f"{type(prediction)}"
+            )
 
         # ----------------------------------------------------
         # Convert prediction to mask
@@ -813,12 +1296,20 @@ class BiRefNetService:
 
         prediction = prediction.squeeze()
 
+        # Make sure the mask has the expected dimensions.
+        if prediction.ndim != 2:
+
+            raise RuntimeError(
+                "Unexpected BiRefNet mask shape: "
+                f"{tuple(prediction.shape)}"
+            )
+
         mask = transforms.ToPILImage()(
             prediction.cpu()
         )
 
         # ----------------------------------------------------
-        # Restore original image size
+        # Restore original resolution
         # ----------------------------------------------------
 
         mask = mask.resize(
@@ -827,7 +1318,7 @@ class BiRefNetService:
         )
 
         # ----------------------------------------------------
-        # Apply alpha mask
+        # Apply alpha channel
         # ----------------------------------------------------
 
         result = image.convert(
@@ -839,7 +1330,7 @@ class BiRefNetService:
         )
 
         # ----------------------------------------------------
-        # Save output
+        # Save result
         # ----------------------------------------------------
 
         output_path.parent.mkdir(
@@ -857,12 +1348,71 @@ class BiRefNetService:
             output_path,
         )
 
+        # ----------------------------------------------------
+        # Release temporary GPU memory
+        # ----------------------------------------------------
+
+        if DEVICE.type == "cuda":
+
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
         return {
             "filename": output_path.name,
             "width": original_size[0],
             "height": original_size[1],
             "output_path": str(output_path),
         }
+
+    # ========================================================
+    # Main Background Removal
+    # ========================================================
+
+    def remove_background(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+    ) -> dict:
+
+        input_path = Path(
+            input_path
+        )
+
+        output_path = Path(
+            output_path
+        )
+
+        # ----------------------------------------------------
+        # Validate input
+        # ----------------------------------------------------
+
+        if not input_path.exists():
+
+            raise FileNotFoundError(
+                f"Input file not found: {input_path}"
+            )
+
+        # ----------------------------------------------------
+        # Remote mode
+        # ----------------------------------------------------
+
+        if self.use_remote:
+
+            return self._remove_background_remote(
+                input_path,
+                output_path,
+            )
+
+        # ----------------------------------------------------
+        # Local mode
+        # ----------------------------------------------------
+
+        return self._remove_background_local(
+            input_path,
+            output_path,
+        )
 
 
 # ============================================================
