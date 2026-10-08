@@ -68,11 +68,11 @@ TOOLS = [
     "image",
     ProcessingType.SERVER.value,
     "Remove image backgrounds automatically using AI and download a transparent PNG.",
-    long="Remove backgrounds from JPG, JPEG, PNG and WebP images using the BiRefNet AI segmentation model. The processed image is returned as a transparent PNG.",
+    long="Remove backgrounds from JPG, JPEG, PNG and WebP images using the remove.bg API. The processed image is returned as a transparent PNG.",
     how_to_use=[
         "Upload a JPG, JPEG, PNG or WebP image.",
         "Click the remove background button.",
-        "Wait while the AI model processes the image.",
+        "Wait while remove.bg processes the image.",
         "Preview and download the transparent PNG."
     ],
     features=[
@@ -95,7 +95,7 @@ TOOLS = [
         },
         {
             "question": "Does the tool use AI?",
-            "answer": "Yes. The tool uses the BiRefNet image segmentation model."
+            "answer": "Yes. The tool uses the remove.bg API."
         },
         {
             "question": "Will my original image dimensions be preserved?",

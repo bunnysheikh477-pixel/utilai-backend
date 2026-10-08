@@ -86,14 +86,6 @@ async def lifespan(app: FastAPI):
             "memory" if is_using_memory_db() else "mongodb",
         )
 
-        # logger.info(
-        #     "BiRefNet mode: %s",
-        #     (
-        #         "remote"
-        #         if birefnet_service.use_remote
-        #         else str(DEVICE)
-        #     ),
-        # )
         logger.info(
           "Background remover: remove.bg API"
         )
@@ -179,9 +171,6 @@ async def health():
             else "mongodb"
         ),
         "device": "remove.bg",
-        "hf_token_configured": bool(
-            os.getenv("HF_TOKEN")
-        ),
     }
 
 
