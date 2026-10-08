@@ -178,11 +178,7 @@ async def health():
             if is_using_memory_db()
             else "mongodb"
         ),
-        "device": (
-            "remote"
-            if birefnet_service.use_remote
-            else str(DEVICE)
-        ),
+        "device": "remove.bg",
         "hf_token_configured": bool(
             os.getenv("HF_TOKEN")
         ),
@@ -373,4 +369,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
     )
-
